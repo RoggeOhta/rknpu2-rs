@@ -35,7 +35,10 @@ fn main() {
         .unwrap()
         .parent()
         .unwrap()
-        .join("runtime");
+        .join("runtime")
+        .join(VERSION)
+        .join(CHIP.to_string())
+        .join(ARCH.to_string());
     download_runtime(&lib_dir);
 
     // Tell cargo to look for shared libraries in the specified directory
@@ -92,7 +95,7 @@ fn features_check() {
     }
 }
 
-fn download_runtime(out_dir: &PathBuf) {
+fn download_runtime(download_dir: &PathBuf) {
     let mut runtime = HashMap::new();
 
     runtime.insert("librknnrt.so", format!("https://github.com/rockchip-linux/rknpu2/raw/{VERSION}/runtime/{CHIP}/Linux/librknn_api/{ARCH}/librknnrt.so"));
@@ -105,11 +108,6 @@ fn download_runtime(out_dir: &PathBuf) {
             runtime.insert(file, format!("https://mirror.ghproxy.com/{url}"));
         }
     }
-
-    let download_dir = out_dir
-        .join(VERSION)
-        .join(CHIP.to_string())
-        .join(ARCH.to_string());
 
     if !download_dir.exists() {
         std::fs::create_dir_all(&download_dir).unwrap();
@@ -125,6 +123,11 @@ fn download_runtime(out_dir: &PathBuf) {
         download_file(url, download_dir.join(file)).unwrap();
         symlink(download_dir.join(file), symlink_dir.join(file)).unwrap();
     }
+    symlink(
+        download_dir.join("librknnrt.so"),
+        download_dir.join("librknn_api.so"),
+    )
+    .unwrap();
 }
 
 fn download_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
