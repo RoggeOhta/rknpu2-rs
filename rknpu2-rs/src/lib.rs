@@ -2,8 +2,8 @@ mod rknn {
     #![allow(unused_mut)]
     #![allow(unused)]
 
-    use lib::bindings;
     use ndarray::prelude::*;
+    use rknpu2_bind;
     use std::ffi::c_void;
     use std::fmt::Error;
     use std::fs;
@@ -16,13 +16,13 @@ mod rknn {
         ctx: *mut RKNNContext,
         model: Vec<u8>,
         flag: u32,
-        rknn_init_extend: *mut bindings::rknn_init_extend,
+        rknn_init_extend: *mut rknpu2_bind::rknn_init_extend,
     ) -> Result<i32, i32> {
         let model_len = model.len() as u32;
         let mut model = model;
         let mut model: *mut c_void = model.as_mut_ptr() as *mut c_void;
         unsafe {
-            let res = bindings::rknn_init(ctx, model, model_len, flag, rknn_init_extend);
+            let res = rknpu2_bind::rknn_init(ctx, model, model_len, flag, rknn_init_extend);
             if res == 0 {
                 return Ok(0);
             } else {
@@ -31,19 +31,19 @@ mod rknn {
         }
     }
 
-    pub type RKNNInputOutputNumber = bindings::rknn_input_output_num;
+    pub type RKNNInputOutputNumber = rknpu2_bind::rknn_input_output_num;
 
     pub fn get_input_output_number(ctx: RKNNContext) -> Result<RKNNInputOutputNumber, i32> {
-        let cmd = bindings::_rknn_query_cmd_RKNN_QUERY_IN_OUT_NUM;
-        let mut input: bindings::rknn_input_output_num = RKNNInputOutputNumber {
+        let cmd = rknpu2_bind::_rknn_query_cmd_RKNN_QUERY_IN_OUT_NUM;
+        let mut input: rknpu2_bind::rknn_input_output_num = RKNNInputOutputNumber {
             n_input: 0,
             n_output: 0,
         };
-        let size = mem::size_of::<bindings::rknn_input_output_num>() as u32;
+        let size = mem::size_of::<rknpu2_bind::rknn_input_output_num>() as u32;
         let input_ptr = &mut input as *mut _ as *mut c_void;
 
         unsafe {
-            let ret = bindings::rknn_query(ctx, cmd, input_ptr, size);
+            let ret = rknpu2_bind::rknn_query(ctx, cmd, input_ptr, size);
             if ret == 0 {
                 return Ok(input);
             } else {
@@ -52,7 +52,7 @@ mod rknn {
         }
     }
 
-    pub type RKNNTensorAttr = bindings::rknn_tensor_attr;
+    pub type RKNNTensorAttr = rknpu2_bind::rknn_tensor_attr;
     pub fn get_model_input_info(
         ctx: RKNNContext,
         input_num: u32,
@@ -71,14 +71,14 @@ mod rknn {
         //     ret = rknn_query(ctx, RKNN_QUERY_INPUT_ATTR, &(input_attrs[i]),
         //     sizeof(rknn_tensor_attr));
         // }
-        let cmd = bindings::_rknn_query_cmd_RKNN_QUERY_INPUT_ATTR;
+        let cmd = rknpu2_bind::_rknn_query_cmd_RKNN_QUERY_INPUT_ATTR;
         let size = mem::size_of::<RKNNTensorAttr>() as u32;
         for i in 0..input_num as usize {
             let mut entry = input_attrs.get_mut(i).unwrap();
             entry.index = i as u32;
             let entry_ptr = entry as *mut _ as *mut c_void;
             unsafe {
-                let ret = bindings::rknn_query(ctx, cmd, entry_ptr, size);
+                let ret = rknpu2_bind::rknn_query(ctx, cmd, entry_ptr, size);
                 if ret != 0 {
                     return Err(ret);
                 }
@@ -107,14 +107,14 @@ mod rknn {
         //     ret = rknn_query(ctx, RKNN_QUERY_OUTPUT_ATTR,
         //         &(output_attrs[i]), sizeof(rknn_tensor_attr));
         // }
-        let cmd = bindings::_rknn_query_cmd_RKNN_QUERY_OUTPUT_ATTR;
+        let cmd = rknpu2_bind::_rknn_query_cmd_RKNN_QUERY_OUTPUT_ATTR;
         let size = mem::size_of::<RKNNTensorAttr>() as u32;
         for i in 0..output_num {
             let entry = output_attrs.get_mut(i).unwrap();
             let entry_ptr = entry as *mut _ as *mut c_void;
             entry.index = i as u32;
             unsafe {
-                let ret = bindings::rknn_query(ctx, cmd, entry_ptr, size);
+                let ret = rknpu2_bind::rknn_query(ctx, cmd, entry_ptr, size);
                 if ret != 0 {
                     return Err(ret);
                 }
@@ -124,8 +124,8 @@ mod rknn {
         return Ok(output_attrs);
     }
 
-    pub type RKNNInput = bindings::rknn_input;
-    pub type RKNNOutput = bindings::rknn_output;
+    pub type RKNNInput = rknpu2_bind::rknn_input;
+    pub type RKNNOutput = rknpu2_bind::rknn_output;
     pub fn make_rknn_image_input(mut image_array_view: ArrayViewMut<u8, IxDyn>) -> Vec<RKNNInput> {
         // RKNNInput tensor_inputs;
         #[allow(invalid_value)]
@@ -134,8 +134,8 @@ mod rknn {
         unsafe { ptr::write_bytes((&mut tensor_inputs) as *mut _, 0, 1) }
 
         tensor_inputs.index = 0;
-        tensor_inputs.type_ = bindings::_rknn_tensor_type_RKNN_TENSOR_UINT8;
-        tensor_inputs.fmt = bindings::_rknn_tensor_format_RKNN_TENSOR_NHWC;
+        tensor_inputs.type_ = rknpu2_bind::_rknn_tensor_type_RKNN_TENSOR_UINT8;
+        tensor_inputs.fmt = rknpu2_bind::_rknn_tensor_format_RKNN_TENSOR_NHWC;
         tensor_inputs.size = image_array_view.len() as u32;
         tensor_inputs.buf = image_array_view.as_mut_ptr() as *mut _ as *mut c_void;
 
@@ -149,7 +149,7 @@ mod rknn {
     ) -> Result<i32, i32> {
         let inputs_ptr = inputs.as_mut_ptr() as *mut RKNNInput;
         unsafe {
-            let ret = bindings::rknn_inputs_set(ctx, input_num, inputs_ptr);
+            let ret = rknpu2_bind::rknn_inputs_set(ctx, input_num, inputs_ptr);
             if ret == 0 {
                 return Ok(ret);
             } else {
@@ -160,7 +160,7 @@ mod rknn {
 
     pub fn rknn_run(ctx: RKNNContext) -> Result<i32, i32> {
         unsafe {
-            let ret = bindings::rknn_run(ctx, ptr::null_mut());
+            let ret = rknpu2_bind::rknn_run(ctx, ptr::null_mut());
             if ret == 0 {
                 return Ok(ret);
             } else {
@@ -179,7 +179,7 @@ mod rknn {
         }
         let outputs_ptr = outputs.as_mut_ptr();
         unsafe {
-            let ret = bindings::rknn_outputs_get(ctx, output_num, outputs_ptr, ptr::null_mut());
+            let ret = rknpu2_bind::rknn_outputs_get(ctx, output_num, outputs_ptr, ptr::null_mut());
             if ret == 0 {
                 return Ok(outputs);
             } else {
@@ -195,7 +195,7 @@ mod tests {
     #![allow(unused)]
 
     use crate::rknn::*;
-    use lib::bindings::_rknn_query_cmd_RKNN_QUERY_IN_OUT_NUM;
+    use rknpu2_bind::_rknn_query_cmd_RKNN_QUERY_IN_OUT_NUM;
     use std::env::current_dir;
     use std::ffi::c_void;
     use std::fs;
