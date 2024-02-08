@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 fn main() {
     // Tell cargo to look for shared libraries in the specified directory
-    println!("cargo:rustc-link-search=./rknpu2/runtime/RK3588/Linux/librknn_api/aarch64");
+    println!("cargo:rustc-link-search=rknpu2/runtime/RK3588/Linux/librknn_api/aarch64");
     println!("cargo:rustc-link-lib=rknnrt");
     println!("cargo:rustc-link-lib=rknn_api");
 

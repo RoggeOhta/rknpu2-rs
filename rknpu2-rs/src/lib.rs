@@ -1,17 +1,8 @@
-mod bindings {
-    #![allow(non_upper_case_globals)]
-    #![allow(non_camel_case_types)]
-    #![allow(non_snake_case)]
-    #![allow(unused_mut)]
-    #![allow(unused)]
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-}
-
 mod rknn {
     #![allow(unused_mut)]
     #![allow(unused)]
 
-    use crate::bindings;
+    use lib::bindings;
     use ndarray::prelude::*;
     use std::ffi::c_void;
     use std::fmt::Error;
@@ -203,8 +194,9 @@ mod tests {
     #![allow(unused_mut)]
     #![allow(unused)]
 
-    use crate::bindings::_rknn_query_cmd_RKNN_QUERY_IN_OUT_NUM;
     use crate::rknn::*;
+    use lib::bindings::_rknn_query_cmd_RKNN_QUERY_IN_OUT_NUM;
+    use std::env::current_dir;
     use std::ffi::c_void;
     use std::fs;
     use std::ptr;
