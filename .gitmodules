@@ -1,0 +1,3 @@
+[submodule "rknpu2"]
+	path = rknpu2
+	url = https://github.com/rockchip-linux/rknpu2.git
