@@ -3,12 +3,9 @@ use std::path::PathBuf;
 
 fn main() {
     // Tell cargo to look for shared libraries in the specified directory
-    println!("cargo:rustc-link-search=./libs");
+    println!("cargo:rustc-link-search=./rknpu2/runtime/RK3588/Linux/librknn_api/aarch64");
     println!("cargo:rustc-link-lib=rknnrt");
-
-    // Tell cargo to tell rustc to link the system bzip2
-    // shared library.
-    // println!("cargo:rustc-link-lib=bz2");
+    println!("cargo:rustc-link-lib=rknn_api");
 
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
@@ -16,7 +13,7 @@ fn main() {
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("bindgen/wrapper.h")
+        .header("headers/wrapper.h")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
@@ -31,10 +28,4 @@ fn main() {
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
-
-    // Command::new("sh")
-    //     .arg("cp")
-    //     .arg("-r")
-    //     .arg("./assets")
-    //     .arg(env::var("OUT_DIR").unwrap());
 }
