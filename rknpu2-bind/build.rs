@@ -115,9 +115,15 @@ fn download_runtime(out_dir: &PathBuf) {
         std::fs::create_dir_all(&download_dir).unwrap();
     }
 
+    let symlink_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("runtime");
+
+    if !symlink_dir.exists() {
+        std::fs::create_dir_all(&symlink_dir).unwrap();
+    }
+
     for (file, url) in runtime.iter() {
         download_file(url, download_dir.join(file)).unwrap();
-        symlink(download_dir.join(file), out_dir).unwrap();
+        symlink(download_dir.join(file), symlink_dir.join(file)).unwrap();
     }
 }
 
@@ -160,10 +166,9 @@ fn download_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
     Ok(())
 }
 
-fn symlink<P1: AsRef<Path>, P2: AsRef<Path>>(path: P1, runtime_dir: P2) -> Result<()> {
+fn symlink<P1: AsRef<Path>, P2: AsRef<Path>>(path: P1, symlink_path: P2) -> Result<()> {
     let path_ref = path.as_ref();
-    let runtime_dir = runtime_dir.as_ref();
-    let symlink_path = runtime_dir.join(path_ref.file_name().unwrap());
+    let symlink_path = symlink_path.as_ref();
     if symlink_path.exists() {
         std::fs::remove_file(&symlink_path)
             .with_context(|| format!("Failed to remove file at {:?}", &symlink_path))?;
