@@ -22,29 +22,18 @@ const CHIP: Chip = Chip::RK356X;
 const CHIP: Chip = Chip::RV1106;
 
 #[cfg(feature = "aarch64")]
-const ARCH: Arch = Arch::Aarch64;
+const ARCH: Arch = Arch::AArch64;
 
 #[cfg(feature = "armhf")]
 const ARCH: Arch = Arch::Armhf;
 
 fn main() {
-    let lib_dir = PathBuf::from(env::var("OUT_DIR").unwrap())
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("runtime")
-        .join(VERSION)
-        .join(CHIP.to_string())
-        .join(ARCH.to_string());
-    download_runtime(&lib_dir);
+    let lib_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("runtime");
+    download_rknn_libs(&lib_dir);
 
     // Tell cargo to look for shared libraries in the specified directory
     println!("cargo:rustc-link-search={}", lib_dir.display());
     println!("cargo:rustc-link-lib=rknnrt");
-    println!("cargo:rustc-link-lib=rknn_api");
 
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
@@ -95,7 +84,7 @@ fn features_check() {
     }
 }
 
-fn download_runtime(download_dir: &PathBuf) {
+fn download_rknn_libs(out_dir: &PathBuf) {
     let mut runtime = HashMap::new();
 
     runtime.insert("librknnrt.so", format!("https://github.com/rockchip-linux/rknpu2/raw/{VERSION}/runtime/{CHIP}/Linux/librknn_api/{ARCH}/librknnrt.so"));
@@ -104,10 +93,15 @@ fn download_runtime(download_dir: &PathBuf) {
 
     #[cfg(feature = "mirror")]
     {
-        for (file, url) in runtime.iter_mut() {
-            runtime.insert(file, format!("https://mirror.ghproxy.com/{url}"));
+        for (_file, url) in runtime.iter_mut() {
+            *url = format!("https://mirror.ghproxy.com/{url}");
         }
     }
+
+    let download_dir = out_dir
+        .join(VERSION)
+        .join(CHIP.to_string())
+        .join(ARCH.to_string());
 
     if !download_dir.exists() {
         std::fs::create_dir_all(&download_dir).unwrap();
@@ -123,11 +117,6 @@ fn download_runtime(download_dir: &PathBuf) {
         download_file(url, download_dir.join(file)).unwrap();
         symlink(download_dir.join(file), symlink_dir.join(file)).unwrap();
     }
-    symlink(
-        download_dir.join("librknnrt.so"),
-        download_dir.join("librknn_api.so"),
-    )
-    .unwrap();
 }
 
 fn download_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
@@ -142,9 +131,9 @@ fn download_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
         let mut builder = ClientBuilder::new();
 
         if let Some(proxy) = proxy.http {
-            builder = builder.proxy(reqwest::Proxy::http(proxy).unwrap());
+            builder = builder.proxy(reqwest::Proxy::all(proxy).unwrap());
         } else if let Some(proxy) = proxy.https {
-            builder = builder.proxy(reqwest::Proxy::https(proxy).unwrap());
+            builder = builder.proxy(reqwest::Proxy::all(proxy).unwrap());
         }
 
         builder.build().unwrap()
@@ -198,14 +187,14 @@ impl Display for Chip {
 }
 
 enum Arch {
-    Aarch64,
+    AArch64,
     Armhf,
 }
 
 impl Display for Arch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Arch::Aarch64 => write!(f, "aarch64"),
+            Arch::AArch64 => write!(f, "aarch64"),
             Arch::Armhf => write!(f, "armhf"),
         }
     }
