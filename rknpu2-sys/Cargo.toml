@@ -1,12 +1,12 @@
 [package]
-name = "rknpu2-bind"
+name = "rknpu2-sys"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "rknpu2_bind"
+name = "rknpu2_sys"
 path = "src/lib.rs"
 
 [build-dependencies]

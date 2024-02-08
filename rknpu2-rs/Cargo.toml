@@ -10,4 +10,4 @@ image = "0.24.8"
 
 [dependencies]
 ndarray = "0.15.6"
-rknpu2-bind = { path = "../rknpu2-bind" }
+rknpu2-sys = { path = "../rknpu2-sys" }
