@@ -142,9 +142,9 @@ fn download_file<P: AsRef<Path>>(url: &str, path: P) -> Result<()> {
         let mut builder = ClientBuilder::new();
 
         if let Some(proxy) = proxy.http {
-            builder = builder.proxy(reqwest::Proxy::all(proxy).unwrap());
+            builder = builder.proxy(reqwest::Proxy::http(proxy).unwrap());
         } else if let Some(proxy) = proxy.https {
-            builder = builder.proxy(reqwest::Proxy::all(proxy).unwrap());
+            builder = builder.proxy(reqwest::Proxy::https(proxy).unwrap());
         }
 
         builder.build().unwrap()
