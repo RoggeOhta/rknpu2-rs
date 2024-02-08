@@ -10,9 +10,22 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-const CHIP: Chip = Chip::RK3588;
-const ARCH: Arch = Arch::Aarch64;
 const VERSION: &str = "v1.5.2";
+
+#[cfg(feature = "rk3588")]
+const CHIP: Chip = Chip::RK3588;
+
+#[cfg(feature = "rk356x")]
+const CHIP: Chip = Chip::RK356X;
+
+#[cfg(feature = "rv1106")]
+const CHIP: Chip = Chip::RV1106;
+
+#[cfg(feature = "aarch64")]
+const ARCH: Arch = Arch::Aarch64;
+
+#[cfg(feature = "armhf")]
+const ARCH: Arch = Arch::Armhf;
 
 fn main() {
     let lib_dir = PathBuf::from(env::var("OUT_DIR").unwrap())
@@ -68,6 +81,14 @@ fn features_check() {
 
     if cfg!(feature = "aarch64") && cfg!(feature = "armhf") {
         panic!("Only one of the features 'aarch64' and 'armhf' can be enabled at the same time");
+    }
+
+    if !cfg!(feature = "rv1106") && !cfg!(feature = "rk356x") && !cfg!(feature = "rk3588") {
+        panic!("One of the features 'rv1106', 'rk356x' and 'rk3588' must be enabled");
+    }
+
+    if !cfg!(feature = "aarch64") && !cfg!(feature = "armhf") {
+        panic!("One of the features 'aarch64' and 'armhf' must be enabled");
     }
 }
 
