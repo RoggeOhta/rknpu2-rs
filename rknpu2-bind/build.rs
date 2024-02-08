@@ -104,8 +104,8 @@ fn download_runtime(download_dir: &PathBuf) {
 
     #[cfg(feature = "mirror")]
     {
-        for (file, url) in runtime.iter_mut() {
-            runtime.insert(file, format!("https://mirror.ghproxy.com/{url}"));
+        for (_file, url) in runtime.iter_mut() {
+            *url = format!("https://mirror.ghproxy.com/{url}");
         }
     }
 
