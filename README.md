@@ -6,8 +6,6 @@ Unofficial Rockchip RKNN framework rust binding.
 ```shell
 git clone https://github.com/RoggeOhta/rknpu2-rs.git
 cd rknpu2-rs
-git submodule init
-git submodule update
 cargo build
 cargo test
 ```

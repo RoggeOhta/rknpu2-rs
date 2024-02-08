@@ -10,4 +10,24 @@ name = "rknpu2_bind"
 path = "src/lib.rs"
 
 [build-dependencies]
-bindgen = "0.65.1"
+bindgen = "0.69.4"
+reqwest = { version = "0.11.24", default-features = false, features = [
+    "blocking",
+    "rustls-tls",
+    "socks",
+] }
+system_proxy = "0.3.2"
+anyhow = "1.0.40"
+
+
+[features]
+default = ["rk3588", "aarch64"]
+# Use Ghproxy as a mirror for GitHub
+mirror = []
+
+aarch64 = []
+armhf = []
+
+rk3588 = []
+rk356x = []
+rv1106 = []
