@@ -1,12 +1,8 @@
-#![allow(unused)]
-
-use std::mem::take;
-use std::{arch::aarch64::float32x2_t, cmp, os::raw::c_void, ptr};
-
-use ndarray::{prelude::*, Slice, ViewRepr};
+use ndarray::{prelude::*, ViewRepr};
 use rknpu2_rs::*;
 use rknpu2_rs::{RKNNContext, RKNNContextPack, RKNNOutput};
 use std::fs;
+use std::os::raw::c_void;
 use std::time::Instant;
 
 #[derive(Debug, Default, Clone)]
@@ -51,19 +47,17 @@ fn calc_iou(rect_a: (u32, u32, u32, u32), rect_b: (u32, u32, u32, u32)) -> f32 {
     let (ax, ay, aw, ah) = rect_a;
     let (bx, by, bw, bh) = rect_b;
 
-    // 计算两个矩形右下角的坐标
     let ax_max = ax + aw;
     let ay_max = ay + ah;
     let bx_max = bx + bw;
     let by_max = by + bh;
 
-    // 计算交集的坐标，确保不下溢
     let inter_x_min = ax.max(bx);
     let inter_y_min = ay.max(by);
     let inter_x_max = ax_max.min(bx_max);
     let inter_y_max = ay_max.min(by_max);
 
-    // 确保计算交集宽度和高度时不会出现负值
+    // make sure width and height is positive
     let inter_width = if inter_x_max > inter_x_min {
         inter_x_max - inter_x_min
     } else {
@@ -75,14 +69,13 @@ fn calc_iou(rect_a: (u32, u32, u32, u32), rect_b: (u32, u32, u32, u32)) -> f32 {
         0
     };
 
-    // 计算交集的面积
+    // calc intersection area
     let inter_area = inter_width * inter_height;
 
-    // 计算各自矩形的面积
     let area_a = aw * ah;
     let area_b = bw * bh;
 
-    // 计算并集的面积
+    // calc union area
     let union_area = area_a + area_b - inter_area;
 
     // 计算IoU，转换为浮点数进行除法运算
@@ -93,12 +86,12 @@ fn calc_iou(rect_a: (u32, u32, u32, u32), rect_b: (u32, u32, u32, u32)) -> f32 {
     }
 }
 
-fn nms(mut detect_results: Vec<DetectResult>, iou_thresh: f32) -> Vec<DetectResult> {
+fn nms(detect_results: Vec<DetectResult>, iou_thresh: f32) -> Vec<DetectResult> {
     let mut oust_sentinel = vec![0; detect_results.len()];
     let mut new_detect_results: Vec<DetectResult> = Vec::new();
     let n = detect_results.len();
     for i in 0..n {
-        let mut curr_res = detect_results.get(i).unwrap();
+        let curr_res = detect_results.get(i).unwrap();
         // current value is not ousted
         if *oust_sentinel.get(i).unwrap() == 0 {
             // curr_res will be used to calc iou later, so need clone here.
@@ -253,12 +246,6 @@ fn t_rknn_init() -> RKNNContext {
     return rknn_init(model, 0, std::ptr::null_mut()).unwrap();
 }
 
-fn read_image(img_path: String) -> image::ImageBuffer<image::Rgb<u8>, Vec<u8>> {
-    let img = ImageReader::open(img_path).unwrap().decode().unwrap();
-    let img: image::ImageBuffer<image::Rgb<u8>, Vec<u8>> = img.to_rgb8();
-    return img;
-}
-
 fn image_to_array_view<'a>(
     img_buffer: &'a mut ImageBuffer<image::Rgb<u8>, Vec<u8>>,
 ) -> ArrayViewMut<u8, IxDyn> {
@@ -271,7 +258,7 @@ fn image_to_array_view<'a>(
     }
 }
 
-use image::{imageops, io::Reader as ImageReader, ImageBuffer, Rgb};
+use image::{imageops, ImageBuffer, Rgb};
 use imageproc::drawing::{draw_hollow_rect_mut, draw_text_mut};
 use imageproc::rect::Rect;
 use rusttype::{Font, Scale};
@@ -292,11 +279,11 @@ fn main() {
 
     // setup rknn input
     let rknn_inputs = make_rknn_image_input(img_array_view);
-    let ret = rknn_inputs_set(ctx, io_info.n_input, rknn_inputs);
+    let _ret = rknn_inputs_set(ctx, io_info.n_input, rknn_inputs);
 
     // run rknn
     let start = Instant::now();
-    let ret = rknn_run(ctx);
+    let _ret = rknn_run(ctx);
     dbg!(start.elapsed());
 
     // extract rknn outputs
@@ -337,6 +324,7 @@ fn main() {
         draw_text_mut(&mut img_buffer, text_color, x, y, scale, &font, &text);
     }
 
+    // save image to file.
     img_buffer
         .save(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/result.jpg"))
         .expect("Failed to save image");
