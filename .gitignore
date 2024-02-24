@@ -16,3 +16,6 @@ Cargo.lock
 .vscode/
 cpp-demo/
 rknpu2-yolov8/
+v6-demo/
+
+**/result.jpg

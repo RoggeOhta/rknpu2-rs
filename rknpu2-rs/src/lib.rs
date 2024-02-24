@@ -1,8 +1,10 @@
 #![allow(unused_mut)]
 #![allow(unused)]
 
+use core::panic;
 use ndarray::prelude::*;
 use rknpu2_sys;
+use rknpu2_sys::rknn_tensor_attr;
 use std::ffi::c_void;
 use std::fmt::Error;
 use std::fs;
@@ -11,19 +13,68 @@ use std::ptr;
 
 pub type RKNNContext = u64;
 
+#[derive(Debug)]
+pub struct RKNNContextPack {
+    pub ctx: RKNNContext,
+    pub io_info: RKNNInputOutputNumber,
+    pub input_info: Vec<rknn_tensor_attr>,
+    pub output_info: Vec<rknn_tensor_attr>,
+    pub input_shape: Vec<u32>,
+    pub is_quant: bool,
+}
+
+pub fn make_rknn_context_pack(ctx: RKNNContext) -> Result<RKNNContextPack, i32> {
+    /// Make rknn context with useful informations.
+    /// Note: This function now only support single input
+    let io_info = get_input_output_number(ctx)?;
+    let input_info = get_model_input_info(ctx, io_info.n_input)?;
+    let output_info = get_model_output_info(ctx, io_info.n_output)?;
+    let input_info_0 = input_info.get(0).unwrap();
+    let input_shape = Vec::from(&input_info_0.dims[0..input_info_0.n_dims as usize]);
+    let qnt_type = input_info_0.qnt_type;
+    let mut is_quant: bool;
+    match qnt_type {
+        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_NONE => {
+            is_quant = false;
+        }
+        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_DFP => {
+            is_quant = true;
+        }
+        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_AFFINE_ASYMMETRIC => {
+            is_quant = true;
+        }
+        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_MAX => {
+            is_quant = true;
+        }
+        _ => {
+            panic!("Error, Unknown quant type.")
+        }
+    }
+    let pack = RKNNContextPack {
+        ctx,
+        io_info,
+        input_info,
+        output_info,
+        input_shape,
+        is_quant,
+    };
+    return Ok(pack);
+}
+
 pub fn rknn_init(
-    ctx: *mut RKNNContext,
     model: Vec<u8>,
     flag: u32,
     rknn_init_extend: *mut rknpu2_sys::rknn_init_extend,
-) -> Result<i32, i32> {
+) -> Result<RKNNContext, i32> {
+    let mut ctx: RKNNContext = 0;
+    let mut ctx: *mut RKNNContext = &mut ctx;
     let model_len = model.len() as u32;
     let mut model = model;
     let mut model: *mut c_void = model.as_mut_ptr() as *mut c_void;
     unsafe {
         let res = rknpu2_sys::rknn_init(ctx, model, model_len, flag, rknn_init_extend);
         if res == 0 {
-            return Ok(0);
+            return Ok(*ctx);
         } else {
             return Err(res);
         }
@@ -202,24 +253,28 @@ mod tests {
     use image::{io::Reader as ImageReader, ImageBuffer};
     use ndarray::prelude::*;
 
-    #[test]
-    fn test_rknn_init() {
-        let mut ctx: RKNNContext = 0;
-        let mut ctx: *mut RKNNContext = &mut ctx;
+    fn t_rknn_init() -> RKNNContext {
         let mut model =
             fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov8.rknn")).unwrap();
+        return rknn_init(model, 0, std::ptr::null_mut()).unwrap();
+    }
 
-        assert!(rknn_init(ctx, model, 0, std::ptr::null_mut()).is_ok());
+    #[test]
+    fn test_rknn_init() {
+        t_rknn_init();
+    }
+
+    #[test]
+    fn test_make_rknn_context_pack() {
+        let ctx = t_rknn_init();
+        let res = make_rknn_context_pack(ctx);
+        assert!(res.is_ok());
+        dbg!(res);
     }
 
     #[test]
     fn test_get_input_output_number() {
-        let mut ctx: RKNNContext = 0;
-        let mut ctx_ptr: *mut RKNNContext = &mut ctx;
-        let mut model =
-            fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov8.rknn")).unwrap();
-
-        assert!(rknn_init(ctx_ptr, model, 0, std::ptr::null_mut()).is_ok());
+        let ctx = t_rknn_init();
 
         let io_info = get_input_output_number(ctx);
         assert!(io_info.is_ok());
@@ -228,12 +283,7 @@ mod tests {
 
     #[test]
     fn test_get_model_input_info() {
-        let mut ctx: RKNNContext = 0;
-        let mut ctx_ptr: *mut RKNNContext = &mut ctx;
-        let mut model =
-            fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov8.rknn")).unwrap();
-
-        assert!(rknn_init(ctx_ptr, model, 0, std::ptr::null_mut()).is_ok());
+        let ctx = t_rknn_init();
 
         let io_info = get_input_output_number(ctx);
         assert!(io_info.is_ok());
@@ -246,20 +296,15 @@ mod tests {
 
     #[test]
     fn test_get_model_output_info() {
-        let mut ctx: RKNNContext = 0;
-        let mut ctx_ptr: *mut RKNNContext = &mut ctx;
-        let mut model =
-            fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov8.rknn")).unwrap();
-
-        assert!(rknn_init(ctx_ptr, model, 0, std::ptr::null_mut()).is_ok());
+        let ctx = t_rknn_init();
 
         let io_info = get_input_output_number(ctx);
         assert!(io_info.is_ok());
         let io_info = io_info.unwrap();
 
-        let model_input_info = get_model_output_info(ctx, io_info.n_output);
-        assert!(model_input_info.is_ok());
-        dbg!(model_input_info.unwrap());
+        let model_output_info = get_model_output_info(ctx, io_info.n_output);
+        assert!(model_output_info.is_ok());
+        dbg!(model_output_info.unwrap());
     }
 
     fn read_image(img_path: String) -> image::ImageBuffer<image::Rgb<u8>, Vec<u8>> {
@@ -298,12 +343,7 @@ mod tests {
 
     #[test]
     fn test_rknn_set_inputs() {
-        let mut ctx: RKNNContext = 0;
-        let mut ctx_ptr: *mut RKNNContext = &mut ctx;
-        let mut model =
-            fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov8.rknn")).unwrap();
-
-        assert!(rknn_init(ctx_ptr, model, 0, std::ptr::null_mut()).is_ok());
+        let ctx = t_rknn_init();
 
         let io_info = get_input_output_number(ctx);
         assert!(io_info.is_ok());
@@ -319,12 +359,7 @@ mod tests {
 
     #[test]
     fn test_rknn_run() {
-        let mut ctx: RKNNContext = 0;
-        let mut ctx_ptr: *mut RKNNContext = &mut ctx;
-        let mut model =
-            fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov8.rknn")).unwrap();
-
-        assert!(rknn_init(ctx_ptr, model, 0, std::ptr::null_mut()).is_ok());
+        let ctx = t_rknn_init();
 
         let io_info = get_input_output_number(ctx);
         assert!(io_info.is_ok());
@@ -343,12 +378,7 @@ mod tests {
 
     #[test]
     fn test_rknn_outputs_get() {
-        let mut ctx: RKNNContext = 0;
-        let mut ctx_ptr: *mut RKNNContext = &mut ctx;
-        let mut model =
-            fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov8.rknn")).unwrap();
-
-        assert!(rknn_init(ctx_ptr, model, 0, std::ptr::null_mut()).is_ok());
+        let ctx = t_rknn_init();
 
         let io_info = get_input_output_number(ctx);
         assert!(io_info.is_ok());
