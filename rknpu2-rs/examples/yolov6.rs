@@ -123,6 +123,7 @@ fn post_process(
     conf_thresh: f32,
     iou_thresh: f32,
 ) -> Vec<DetectResult> {
+    #![allow(unused_variables)]
     // input information
     let input_num = ctx.io_info.n_input;
     let output_num = ctx.io_info.n_output;
@@ -180,7 +181,7 @@ fn post_process(
         for i in 0..grid_h {
             for j in 0..grid_w {
                 // fast filter
-                if (score_sum_output[[0, 0, i, j]] < score_sum_thresh_i8) {
+                if score_sum_output[[0, 0, i, j]] < score_sum_thresh_i8 {
                     continue;
                 }
 
@@ -189,7 +190,7 @@ fn post_process(
                 let mut max_class_id = -1i32;
                 for class_id in 0..class_num {
                     let curr_class_conf: i8 = score_output[[0, class_id, i, j]];
-                    if (curr_class_conf > score_thresh_i8 && curr_class_conf > max_score_i8) {
+                    if curr_class_conf > score_thresh_i8 && curr_class_conf > max_score_i8 {
                         max_score_i8 = curr_class_conf;
                         max_class_id = class_id as i32;
                     }
@@ -201,7 +202,7 @@ fn post_process(
 
                 // compute box
                 let mut curr_box = vec![0f32; 4];
-                if (max_score_i8 > score_thresh_i8) {
+                if max_score_i8 > score_thresh_i8 {
                     // todo!("DFL when dfl > 1");
                     curr_box[0] = deqnt_affine_to_f32(box_output[[0, 0, i, j]], box_zp, box_scale);
                     curr_box[1] = deqnt_affine_to_f32(box_output[[0, 1, i, j]], box_zp, box_scale);
@@ -242,7 +243,7 @@ fn post_process(
 }
 
 fn t_rknn_init() -> RKNNContext {
-    let mut model = fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov6.rknn")).unwrap();
+    let model = fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov6.rknn")).unwrap();
     return rknn_init(model, 0, std::ptr::null_mut()).unwrap();
 }
 
