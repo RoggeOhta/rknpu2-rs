@@ -78,11 +78,11 @@ fn calc_iou(rect_a: (u32, u32, u32, u32), rect_b: (u32, u32, u32, u32)) -> f32 {
     // calc union area
     let union_area = area_a + area_b - inter_area;
 
-    // 计算IoU，转换为浮点数进行除法运算
+    // prevetn divided by zero
     if union_area == 0 {
-        0.0 // 避免除以0
+        return 0.0;
     } else {
-        inter_area as f32 / union_area as f32
+        return inter_area as f32 / union_area as f32;
     }
 }
 
@@ -123,16 +123,13 @@ fn post_process(
     conf_thresh: f32,
     iou_thresh: f32,
 ) -> Vec<DetectResult> {
-    #![allow(unused_variables)]
     // input information
-    let input_num = ctx.io_info.n_input;
     let output_num = ctx.io_info.n_output;
-    let input_w = ctx.input_shape.get(1).unwrap().clone();
     let input_h = ctx.input_shape.get(2).unwrap().clone();
 
     // branch info
     let output_0 = ctx.output_info.get(0).unwrap();
-    let dfl_len = output_0.dims[1] / 4;
+    let _dfl_len = output_0.dims[1] / 4;
     let output_per_branch = output_num / 3;
 
     let mut detect_results: Vec<DetectResult> = Vec::new();
@@ -285,12 +282,12 @@ fn main() {
     // run rknn
     let start = Instant::now();
     let _ret = rknn_run(ctx);
-    dbg!(start.elapsed());
 
     // extract rknn outputs
     let rknn_outputs = rknn_outputs_get(ctx, io_info.n_output);
     let rknn_outputs = rknn_outputs.unwrap();
     let res = post_process(ctx_pack, rknn_outputs, 0.5, 0.5);
+    dbg!(start.elapsed());
 
     // load font
     let font_data = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/font.ttf"));

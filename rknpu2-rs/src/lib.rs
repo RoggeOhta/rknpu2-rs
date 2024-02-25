@@ -255,7 +255,7 @@ mod tests {
 
     fn t_rknn_init() -> RKNNContext {
         let mut model =
-            fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov8.rknn")).unwrap();
+            fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov6.rknn")).unwrap();
         return rknn_init(model, 0, std::ptr::null_mut()).unwrap();
     }
 
