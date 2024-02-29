@@ -84,7 +84,7 @@ fn features_check() {
     }
 }
 
-fn download_rknn_libs(out_dir: &PathBuf) {
+fn download_rknn_libs(out_dir: &Path) {
     let mut runtime = HashMap::new();
 
     runtime.insert("librknnrt.so", format!("https://github.com/rockchip-linux/rknpu2/raw/{VERSION}/runtime/{CHIP}/Linux/librknn_api/{ARCH}/librknnrt.so"));
@@ -162,10 +162,10 @@ fn symlink<P1: AsRef<Path>, P2: AsRef<Path>>(path: P1, symlink_path: P2) -> Resu
     let path_ref = path.as_ref();
     let symlink_path = symlink_path.as_ref();
     if symlink_path.exists() {
-        std::fs::remove_file(&symlink_path)
+        std::fs::remove_file(symlink_path)
             .with_context(|| format!("Failed to remove file at {:?}", &symlink_path))?;
     }
-    std::os::unix::fs::symlink(path_ref, &symlink_path)
+    std::os::unix::fs::symlink(path_ref, symlink_path)
         .with_context(|| format!("Failed to create symlink at {:?}", symlink_path))?;
     Ok(())
 }

@@ -14,22 +14,22 @@ struct DetectResult {
 
 fn clip<T: PartialOrd>(n: T, low: T, high: T) -> T {
     if n > high {
-        return high;
+        high
     } else if n < low {
-        return low;
+        low
     } else {
-        return n;
+        n
     }
 }
 
 fn qnt_f32_to_affine(n: f32, zp: i32, scale: f32) -> i8 {
     let dst_val = (n / scale) + zp as f32;
-    let res = clip(dst_val, -128f32, 127f32) as i8;
-    return res;
+
+    clip(dst_val, -128f32, 127f32) as i8
 }
 
 fn deqnt_affine_to_f32(qnt: i8, zp: i32, scale: f32) -> f32 {
-    return (qnt as f32 - zp as f32) * scale;
+    (qnt as f32 - zp as f32) * scale
 }
 
 fn ptr_to_arrayviewmut(ptr: *mut c_void, shape: &[u32]) -> ArrayBase<ViewRepr<&mut i8>, IxDyn> {
@@ -40,7 +40,8 @@ fn ptr_to_arrayviewmut(ptr: *mut c_void, shape: &[u32]) -> ArrayBase<ViewRepr<&m
         let _arr = ArrayViewMut::from_shape_ptr(shape, ptr as *mut i8);
         arr = _arr.into_dyn();
     }
-    return arr;
+
+    arr
 }
 
 fn calc_iou(rect_a: (u32, u32, u32, u32), rect_b: (u32, u32, u32, u32)) -> f32 {
@@ -81,9 +82,9 @@ fn calc_iou(rect_a: (u32, u32, u32, u32), rect_b: (u32, u32, u32, u32)) -> f32 {
     // prevetn divided by zero
     if union_area == 0 {
         return 0.0;
-    } else {
-        return inter_area as f32 / union_area as f32;
     }
+
+    inter_area as f32 / union_area as f32
 }
 
 fn nms(detect_results: Vec<DetectResult>, iou_thresh: f32) -> Vec<DetectResult> {
@@ -114,7 +115,8 @@ fn nms(detect_results: Vec<DetectResult>, iou_thresh: f32) -> Vec<DetectResult> 
             }
         }
     }
-    return new_detect_results;
+
+    new_detect_results
 }
 
 fn post_process(
@@ -125,10 +127,10 @@ fn post_process(
 ) -> Vec<DetectResult> {
     // input information
     let output_num = ctx.io_info.n_output;
-    let input_h = ctx.input_shape.get(2).unwrap().clone();
+    let input_h = *ctx.input_shape.get(2).unwrap();
 
     // branch info
-    let output_0 = ctx.output_info.get(0).unwrap();
+    let output_0 = ctx.output_info.first().unwrap();
     let _dfl_len = output_0.dims[1] / 4;
     let output_per_branch = output_num / 3;
 
@@ -198,7 +200,7 @@ fn post_process(
                 }
 
                 // compute box
-                let mut curr_box = vec![0f32; 4];
+                let mut curr_box = [0f32; 4];
                 if max_score_i8 > score_thresh_i8 {
                     // todo!("DFL when dfl > 1");
                     curr_box[0] = deqnt_affine_to_f32(box_output[[0, 0, i, j]], box_zp, box_scale);
@@ -209,9 +211,9 @@ fn post_process(
 
                 // process (x1,y1,x2,y2) -> (x,y,w,h)
                 let x1 = (-curr_box[0] + j as f32 + 0.5) * stride as f32;
-                let y1 = (-curr_box[1] as f32 + i as f32 + 0.5) * stride as f32;
-                let x2 = (curr_box[2] as f32 + j as f32 + 0.5) * stride as f32;
-                let y2 = (curr_box[3] as f32 + i as f32 + 0.5) * stride as f32;
+                let y1 = (-curr_box[1] + i as f32 + 0.5) * stride as f32;
+                let x2 = (curr_box[2] + j as f32 + 0.5) * stride as f32;
+                let y2 = (curr_box[3] + i as f32 + 0.5) * stride as f32;
                 let w = x2 - x1;
                 let h = y2 - y1;
                 let curr_box = (x1 as u32, y1 as u32, w as u32, h as u32);
@@ -226,7 +228,7 @@ fn post_process(
     }
 
     // todo: result something
-    if detect_results.len() == 0 {
+    if detect_results.is_empty() {
         return detect_results;
     }
 
@@ -234,26 +236,27 @@ fn post_process(
     detect_results.sort_by(|a, b| b.conf.partial_cmp(&a.conf).unwrap());
 
     // apply nms
-    let detect_results = nms(detect_results, iou_thresh);
 
-    return detect_results;
+    nms(detect_results, iou_thresh)
 }
 
 fn t_rknn_init() -> RKNNContext {
     let model = fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov6.rknn")).unwrap();
-    return rknn_init(model, 0, std::ptr::null_mut()).unwrap();
+
+    rknn_init(model, 0, None).unwrap()
 }
 
-fn image_to_array_view<'a>(
-    img_buffer: &'a mut ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+fn image_to_array_view(
+    img_buffer: &mut ImageBuffer<image::Rgb<u8>, Vec<u8>>,
 ) -> ArrayViewMut<u8, IxDyn> {
     let (w, h) = (img_buffer.width(), img_buffer.height());
-    unsafe {
+    let arr = unsafe {
         let arr =
             ArrayViewMut::from_shape_ptr((w as usize, h as usize, 3), img_buffer.as_mut_ptr());
-        let arr = arr.into_dyn();
-        return arr;
-    }
+        arr.into_dyn()
+    };
+
+    arr
 }
 
 use image::{imageops, ImageBuffer, Rgb};
@@ -298,7 +301,7 @@ fn main() {
         env!("CARGO_MANIFEST_DIR"),
         "/assets/coco_80_labels_list.txt"
     ));
-    let class_list: Vec<_> = class_list.split("\n").collect();
+    let class_list: Vec<_> = class_list.split('\n').collect();
 
     for detect_res in res {
         let (x, y, w, h) = detect_res.rect;
@@ -315,7 +318,7 @@ fn main() {
         let text_color: Rgb<u8> = Rgb([0, 255, 0]);
 
         let mut text = String::from(class_list.get(detect_res.id as usize).unwrap().to_owned());
-        text.push_str(" ");
+        text.push(' ');
         text.push_str(&detect_res.conf.to_string());
 
         // draw text

@@ -1,13 +1,8 @@
-#![allow(unused_mut)]
-#![allow(unused)]
-
 use core::panic;
 use ndarray::prelude::*;
-use rknpu2_sys;
 use rknpu2_sys::rknn_tensor_attr;
+
 use std::ffi::c_void;
-use std::fmt::Error;
-use std::fs;
 use std::mem;
 use std::ptr;
 
@@ -23,33 +18,24 @@ pub struct RKNNContextPack {
     pub is_quant: bool,
 }
 
+/// Make rknn context with useful informations.  
+/// Note: This function now only support single input
 pub fn make_rknn_context_pack(ctx: RKNNContext) -> Result<RKNNContextPack, i32> {
-    /// Make rknn context with useful informations.
-    /// Note: This function now only support single input
     let io_info = get_input_output_number(ctx)?;
     let input_info = get_model_input_info(ctx, io_info.n_input)?;
     let output_info = get_model_output_info(ctx, io_info.n_output)?;
-    let input_info_0 = input_info.get(0).unwrap();
+    let input_info_0 = input_info.first().unwrap();
     let input_shape = Vec::from(&input_info_0.dims[0..input_info_0.n_dims as usize]);
     let qnt_type = input_info_0.qnt_type;
-    let mut is_quant: bool;
-    match qnt_type {
-        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_NONE => {
-            is_quant = false;
-        }
-        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_DFP => {
-            is_quant = true;
-        }
-        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_AFFINE_ASYMMETRIC => {
-            is_quant = true;
-        }
-        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_MAX => {
-            is_quant = true;
-        }
+    let is_quant = match qnt_type {
+        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_NONE => false,
+        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_DFP => true,
+        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_AFFINE_ASYMMETRIC => true,
+        rknpu2_sys::_rknn_tensor_qnt_type_RKNN_TENSOR_QNT_MAX => true,
         _ => {
             panic!("Error, Unknown quant type.")
         }
-    }
+    };
     let pack = RKNNContextPack {
         ctx,
         io_info,
@@ -58,25 +44,33 @@ pub fn make_rknn_context_pack(ctx: RKNNContext) -> Result<RKNNContextPack, i32> 
         input_shape,
         is_quant,
     };
-    return Ok(pack);
+
+    Ok(pack)
 }
 
+pub type RKNNInitExtend = rknpu2_sys::rknn_init_extend;
 pub fn rknn_init(
     model: Vec<u8>,
     flag: u32,
-    rknn_init_extend: *mut rknpu2_sys::rknn_init_extend,
+    rknn_init_extend: Option<&mut RKNNInitExtend>,
 ) -> Result<RKNNContext, i32> {
     let mut ctx: RKNNContext = 0;
-    let mut ctx: *mut RKNNContext = &mut ctx;
+    let ctx = ptr::from_mut(&mut ctx);
     let model_len = model.len() as u32;
     let mut model = model;
-    let mut model: *mut c_void = model.as_mut_ptr() as *mut c_void;
+    let model: *mut c_void = model.as_mut_ptr() as *mut c_void;
+
+    let rknn_init_extend = match rknn_init_extend {
+        Some(rknn_init_extend) => ptr::from_mut(rknn_init_extend),
+        None => ptr::null_mut(),
+    };
+
     unsafe {
         let res = rknpu2_sys::rknn_init(ctx, model, model_len, flag, rknn_init_extend);
         if res == 0 {
-            return Ok(*ctx);
+            Ok(*ctx)
         } else {
-            return Err(res);
+            Err(res)
         }
     }
 }
@@ -95,9 +89,9 @@ pub fn get_input_output_number(ctx: RKNNContext) -> Result<RKNNInputOutputNumber
     unsafe {
         let ret = rknpu2_sys::rknn_query(ctx, cmd, input_ptr, size);
         if ret == 0 {
-            return Ok(input);
+            Ok(input)
         } else {
-            return Err(ret);
+            Err(ret)
         }
     }
 }
@@ -121,7 +115,7 @@ pub fn get_model_input_info(ctx: RKNNContext, input_num: u32) -> Result<Vec<RKNN
     let cmd = rknpu2_sys::_rknn_query_cmd_RKNN_QUERY_INPUT_ATTR;
     let size = mem::size_of::<RKNNTensorAttr>() as u32;
     for i in 0..input_num as usize {
-        let mut entry = input_attrs.get_mut(i).unwrap();
+        let entry = input_attrs.get_mut(i).unwrap();
         entry.index = i as u32;
         let entry_ptr = entry as *mut _ as *mut c_void;
         unsafe {
@@ -131,7 +125,7 @@ pub fn get_model_input_info(ctx: RKNNContext, input_num: u32) -> Result<Vec<RKNN
             }
         }
     }
-    return Ok(input_attrs);
+    Ok(input_attrs)
 }
 
 pub fn get_model_output_info(
@@ -168,17 +162,16 @@ pub fn get_model_output_info(
         }
     }
 
-    return Ok(output_attrs);
+    Ok(output_attrs)
 }
 
 pub type RKNNInput = rknpu2_sys::rknn_input;
 pub type RKNNOutput = rknpu2_sys::rknn_output;
 pub fn make_rknn_image_input(mut image_array_view: ArrayViewMut<u8, IxDyn>) -> Vec<RKNNInput> {
     // RKNNInput tensor_inputs;
-    #[allow(invalid_value)]
-    let mut tensor_inputs: RKNNInput = unsafe { mem::MaybeUninit::uninit().assume_init() };
-    // memset(tensor_inputs, 0, sizeof(tensor_inputs));
-    unsafe { ptr::write_bytes((&mut tensor_inputs) as *mut _, 0, 1) }
+    let tensor_inputs_layout = std::alloc::Layout::new::<RKNNInput>();
+    let mut tensor_inputs: RKNNInput =
+        unsafe { *(std::alloc::alloc_zeroed(tensor_inputs_layout) as *mut RKNNInput) };
 
     tensor_inputs.index = 0;
     tensor_inputs.type_ = rknpu2_sys::_rknn_tensor_type_RKNN_TENSOR_UINT8;
@@ -186,7 +179,7 @@ pub fn make_rknn_image_input(mut image_array_view: ArrayViewMut<u8, IxDyn>) -> V
     tensor_inputs.size = image_array_view.len() as u32;
     tensor_inputs.buf = image_array_view.as_mut_ptr() as *mut _ as *mut c_void;
 
-    return vec![tensor_inputs];
+    vec![tensor_inputs]
 }
 
 pub fn rknn_inputs_set(
@@ -198,9 +191,9 @@ pub fn rknn_inputs_set(
     unsafe {
         let ret = rknpu2_sys::rknn_inputs_set(ctx, input_num, inputs_ptr);
         if ret == 0 {
-            return Ok(ret);
+            Ok(ret)
         } else {
-            return Err(ret);
+            Err(ret)
         }
     }
 }
@@ -209,9 +202,9 @@ pub fn rknn_run(ctx: RKNNContext) -> Result<i32, i32> {
     unsafe {
         let ret = rknpu2_sys::rknn_run(ctx, ptr::null_mut());
         if ret == 0 {
-            return Ok(ret);
+            Ok(ret)
         } else {
-            return Err(ret);
+            Err(ret)
         }
     }
 }
@@ -228,9 +221,9 @@ pub fn rknn_outputs_get(ctx: RKNNContext, output_num: u32) -> Result<Vec<RKNNOut
     unsafe {
         let ret = rknpu2_sys::rknn_outputs_get(ctx, output_num, outputs_ptr, ptr::null_mut());
         if ret == 0 {
-            return Ok(outputs);
+            Ok(outputs)
         } else {
-            return Err(ret);
+            Err(ret)
         }
     }
 }
@@ -256,7 +249,7 @@ mod tests {
     fn t_rknn_init() -> RKNNContext {
         let mut model =
             fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/yolov6.rknn")).unwrap();
-        return rknn_init(model, 0, std::ptr::null_mut()).unwrap();
+        rknn_init(model, 0, None).unwrap()
     }
 
     #[test]
@@ -310,18 +303,18 @@ mod tests {
     fn read_image(img_path: String) -> image::ImageBuffer<image::Rgb<u8>, Vec<u8>> {
         let img = ImageReader::open(img_path).unwrap().decode().unwrap();
         let img: image::ImageBuffer<image::Rgb<u8>, Vec<u8>> = img.to_rgb8();
-        return img;
+        img
     }
 
-    fn image_to_array_view<'a>(
-        img_buffer: &'a mut ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+    fn image_to_array_view(
+        img_buffer: &mut ImageBuffer<image::Rgb<u8>, Vec<u8>>,
     ) -> ArrayViewMut<u8, IxDyn> {
         let (w, h) = (img_buffer.width(), img_buffer.height());
         unsafe {
             let arr =
                 ArrayViewMut::from_shape_ptr((w as usize, h as usize, 3), img_buffer.as_mut_ptr());
-            let arr = arr.into_dyn();
-            return arr;
+
+            arr.into_dyn()
         }
     }
 
